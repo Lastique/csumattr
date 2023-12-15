@@ -231,7 +231,7 @@ done
 
 if [[ -z "$action" ]]
 then
-	printf "The -a or -c option must be specified.\n\n" >&2
+	printf "The action option must be specified.\n\n" >&2
 	usage
 	exit 1
 fi
