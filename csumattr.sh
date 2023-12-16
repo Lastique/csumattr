@@ -14,10 +14,12 @@ usage()
 {
 	printf \
 "Usage:
-$0 -a|-c|-p|-r|-h path
+$0 <options> path
 
- -a   Add checksum to the file, if it doesn't have it yet
- -u   Update checksum of the file, add if it doesn't have it yet
+Options:
+ -a   Add checksum to the file, if it's not present
+ -u   Update checksum of the file, if it's outdated or not present
+ -U   Force update checksum of the file, even if it's present an up-to-date
  -c   Compare the stored checksum with the SHA256 hash of the file
  -p   Print the stored SHA256 checksum
  -P   Print the stored SHA256 checksum in coreutils format
@@ -42,7 +44,7 @@ check_file()
 
 	local -i file_mtime
 	file_mtime="$(stat -c "%Y" "$filename")"
-	if [[ $? != 0 ]]
+	if [[ $? -ne 0 ]]
 	then
 		printf "$filename: Failed to stat modification time\n" >&2
 		err=${err:-1}
@@ -51,14 +53,14 @@ check_file()
 
 	local -i stored_mtime
 	stored_mtime="$(getfattr --only-values -n $mtime_attr "$filename" 2>/dev/null)"
-	if [[ $? != 0 ]]
+	if [[ $? -ne 0 ]]
 	then
 		printf "$filename: Modification time attribute not found\n" >&2
 		err=${err:-1}
 		return
 	fi
 
-	if [[ $file_mtime > $stored_mtime ]]
+	if [[ $file_mtime -gt $stored_mtime ]]
 	then
 		printf "$filename: Checksum is outdated\n" >&2
 		err=2
@@ -67,7 +69,7 @@ check_file()
 
 	local stored_csum
 	stored_csum="$(getfattr --only-values -n $csum_attr "$filename" 2>/dev/null)"
-	if [[ $? != 0 ]]
+	if [[ $? -ne 0 ]]
 	then
 		printf "$filename: Checksum attribute not found\n" >&2
 		err=${err:-1} # prevent overwriting err
@@ -76,7 +78,7 @@ check_file()
 
 	local file_csum_line
 	file_csum_line="$(openssl dgst -sha256 -r -- "$filename")"
-	if [[ $? != 0 ]]
+	if [[ $? -ne 0 ]]
 	then
 		printf "$filename: Failed to compute checksum\n" >&2
 		err=${err:-1}
@@ -101,28 +103,39 @@ update_checksum()
 
 	local -i file_mtime
 	file_mtime="$(stat -c "%Y" "$filename")"
-	if [[ $? != 0 ]]
+	if [[ $? -ne 0 ]]
 	then
 		printf "$filename: Failed to stat modification time\n" >&2
 		err=${err:-1}
 		return
 	fi
 
-	if [[ $update == 0 ]]
+	if [[ $update -eq 0 ]]
 	then
 		getfattr -n $csum_attr "$filename" >/dev/null 2>&1
-		if [[ $? == 0 ]]
+		if [[ $? -eq 0 ]]
 		then
 			printf "$filename: Checksum attribute found, skipping\n" >&2
 			return
 		fi
 	fi
 
-	printf "Updating checksum for: \'${filename}\'...\n" >&2
+	if [[ $update -eq 1 ]]
+	then
+		local -i stored_mtime
+		stored_mtime="$(getfattr --only-values -n $mtime_attr "$filename" 2>/dev/null)"
+		if [[ $? -eq 0 && $file_mtime -le $stored_mtime ]]
+		then
+			printf "$filename: Checksum is up-to-date, skipping\n" >&2
+			return
+		fi
+	fi
+
+	printf "$filename: Updating checksum...\n" >&2
 
 	local file_csum_line
 	file_csum_line="$(openssl dgst -sha256 -r -- "$filename")"
-	if [[ $? != 0 ]]
+	if [[ $? -ne 0 ]]
 	then
 		printf "$filename: Failed to compute checksum\n" >&2
 		err=${err:-1}
@@ -136,7 +149,7 @@ remove_attrs()
 {
 	local filename="$1"
 
-	printf "Removing checksum from: \'${filename}\'\n" >&2
+	printf "$filename: Removing checksum\n" >&2
 	setfattr -x $mtime_attr "$filename"
 	setfattr -x $csum_attr "$filename"
 }
@@ -148,9 +161,9 @@ print_checksum()
 
 	local stored_csum
 	stored_csum="$(getfattr --only-values -n $csum_attr "$filename")"
-	if [[ $? == 0 ]]
+	if [[ $? -eq 0 ]]
 	then
-		if [[ $coreutils_format == 0 ]]
+		if [[ $coreutils_format -eq 0 ]]
 		then
 			printf "$stored_csum\n"
 		else
@@ -165,7 +178,7 @@ print_mtime()
 
 	local stored_mtime
 	stored_mtime="$(getfattr --only-values -n $mtime_attr "$filename")"
-	if [[ $? == 0 ]]
+	if [[ $? -eq 0 ]]
 	then
 		printf "$stored_mtime\n"
 	fi
@@ -181,6 +194,9 @@ process_file()
 			;;
 		"update")
 			update_checksum "$filename" 1
+			;;
+		"force_update")
+			update_checksum "$filename" 2
 			;;
 		"check")
 			check_file "$filename"
@@ -203,13 +219,16 @@ process_file()
 }
 
 # main
-while getopts "aucvhrpPm" opt; do
+while getopts "auUcvhrpPm" opt; do
 	case $opt in
 		a)
 			action="add"
 			;;
 		u)
 			action="update"
+			;;
+		U)
+			action="force_update"
 			;;
 		c)
 			action="check"
