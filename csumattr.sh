@@ -40,8 +40,8 @@ check_file()
 {
 	local filename="$1"
 
-	local -i mtime
-	mtime="$(stat -c "%Y" "$filename")"
+	local -i file_mtime
+	file_mtime="$(stat -c "%Y" "$filename")"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Failed to stat modification time\n" >&2
@@ -49,8 +49,8 @@ check_file()
 		return
 	fi
 
-	local -i mtime_attr
-	mtime_attr="$(getfattr --only-values -n $mtime_attr "$filename" 2>/dev/null)"
+	local -i stored_mtime
+	stored_mtime="$(getfattr --only-values -n $mtime_attr "$filename" 2>/dev/null)"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Modification time attribute not found\n" >&2
@@ -58,15 +58,15 @@ check_file()
 		return
 	fi
 
-	if [[ $mtime > $mtime_attr ]]
+	if [[ $file_mtime > $stored_mtime ]]
 	then
 		printf "$filename: Checksum is outdated\n" >&2
 		err=2
 		return
 	fi
 
-	local sum_attr
-	sum_attr="$(getfattr --only-values -n $csum_attr "$filename" 2>/dev/null)"
+	local stored_csum
+	stored_csum="$(getfattr --only-values -n $csum_attr "$filename" 2>/dev/null)"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Checksum attribute not found\n" >&2
@@ -74,8 +74,8 @@ check_file()
 		return
 	fi
 
-	local sum_line
-	sum_line="$(openssl dgst -sha256 -r -- "$filename")"
+	local file_csum_line
+	file_csum_line="$(openssl dgst -sha256 -r -- "$filename")"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Failed to compute checksum\n" >&2
@@ -83,13 +83,13 @@ check_file()
 		return
 	fi
 
-	local sum="${sum_line%% *}"
-	if [ "${sum,,}" == "${sum_attr,,}" ]
+	local file_csum="${file_csum_line%% *}"
+	if [ "${file_csum,,}" == "${stored_csum,,}" ]
 	then
 		printf "$filename: OK\n"
 	else
 		printf "$filename: FAILED\n"
-		printf "$filename: Checksum mismatch (stored: ${sum_attr,,}, actual: ${sum,,})\n" >&2
+		printf "$filename: Checksum mismatch (stored: ${stored_csum,,}, actual: ${file_csum,,})\n" >&2
 		err=3
 	fi
 }
@@ -99,8 +99,8 @@ update_checksum()
 	local filename="$1"
 	local -i update="$2"
 
-	local -i mtime
-	mtime="$(stat -c "%Y" "$filename")"
+	local -i file_mtime
+	file_mtime="$(stat -c "%Y" "$filename")"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Failed to stat modification time\n" >&2
@@ -120,8 +120,8 @@ update_checksum()
 
 	printf "Updating checksum for: \'${filename}\'...\n" >&2
 
-	local sum_line
-	sum_line="$(openssl dgst -sha256 -r -- "$filename")"
+	local file_csum_line
+	file_csum_line="$(openssl dgst -sha256 -r -- "$filename")"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Failed to compute checksum\n" >&2
@@ -129,7 +129,7 @@ update_checksum()
 		return
 	fi
 
-	setfattr -n $mtime_attr -v "$mtime" "$filename" && setfattr -n $csum_attr -v "${sum_line%% *}" "$filename"
+	setfattr -n $mtime_attr -v "$file_mtime" "$filename" && setfattr -n $csum_attr -v "${file_csum_line%% *}" "$filename"
 }
 
 remove_attrs()
@@ -146,15 +146,15 @@ print_checksum()
 	local filename="$1"
 	local -i coreutils_format="$2"
 
-	local sum
-	sum="$(getfattr --only-values -n $csum_attr "$filename")"
+	local stored_csum
+	stored_csum="$(getfattr --only-values -n $csum_attr "$filename")"
 	if [[ $? == 0 ]]
 	then
 		if [[ $coreutils_format == 0 ]]
 		then
-			printf "$sum\n"
+			printf "$stored_csum\n"
 		else
-			printf "$sum *$filename\n"
+			printf "$stored_csum *$filename\n"
 		fi
 	fi
 }
@@ -163,11 +163,11 @@ print_mtime()
 {
 	local filename="$1"
 
-	local mtime
-	mtime="$(getfattr --only-values -n $mtime_attr "$filename")"
+	local stored_mtime
+	stored_mtime="$(getfattr --only-values -n $mtime_attr "$filename")"
 	if [[ $? == 0 ]]
 	then
-		printf "$mtime\n"
+		printf "$stored_mtime\n"
 	fi
 }
 
