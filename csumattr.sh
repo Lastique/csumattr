@@ -40,7 +40,8 @@ check_file()
 {
 	local filename="$1"
 
-	local -i mtime="$(stat -c "%Y" "$filename")"
+	local -i mtime
+	mtime="$(stat -c "%Y" "$filename")"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Failed to stat modification time\n" >&2
@@ -48,7 +49,8 @@ check_file()
 		return
 	fi
 
-	local -i mtime_attr="$(getfattr --only-values -n $mtime_attr "$filename" 2>/dev/null)"
+	local -i mtime_attr
+	mtime_attr="$(getfattr --only-values -n $mtime_attr "$filename" 2>/dev/null)"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Modification time attribute not found\n" >&2
@@ -63,7 +65,8 @@ check_file()
 		return
 	fi
 
-	local sum_attr="$(getfattr --only-values -n $csum_attr "$filename" 2>/dev/null)"
+	local sum_attr
+	sum_attr="$(getfattr --only-values -n $csum_attr "$filename" 2>/dev/null)"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Checksum attribute not found\n" >&2
@@ -71,7 +74,8 @@ check_file()
 		return
 	fi
 
-	local sum_line="$(openssl dgst -sha256 -r -- "$filename")"
+	local sum_line
+	sum_line="$(openssl dgst -sha256 -r -- "$filename")"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Failed to compute checksum\n" >&2
@@ -95,7 +99,8 @@ update_checksum()
 	local filename="$1"
 	local -i update="$2"
 
-	local -i mtime="$(stat -c "%Y" "$filename")"
+	local -i mtime
+	mtime="$(stat -c "%Y" "$filename")"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Failed to stat modification time\n" >&2
@@ -115,7 +120,8 @@ update_checksum()
 
 	printf "Updating checksum for: \'${filename}\'...\n" >&2
 
-	local sum_line="$(openssl dgst -sha256 -r -- "$filename")"
+	local sum_line
+	sum_line="$(openssl dgst -sha256 -r -- "$filename")"
 	if [[ $? != 0 ]]
 	then
 		printf "$filename: Failed to compute checksum\n" >&2
@@ -140,7 +146,8 @@ print_checksum()
 	local filename="$1"
 	local -i coreutils_format="$2"
 
-	local sum="$(getfattr --only-values -n $csum_attr "$filename")"
+	local sum
+	sum="$(getfattr --only-values -n $csum_attr "$filename")"
 	if [[ $? == 0 ]]
 	then
 		if [[ $coreutils_format == 0 ]]
@@ -156,7 +163,8 @@ print_mtime()
 {
 	local filename="$1"
 
-	local mtime="$(getfattr --only-values -n $mtime_attr "$filename")"
+	local mtime
+	mtime="$(getfattr --only-values -n $mtime_attr "$filename")"
 	if [[ $? == 0 ]]
 	then
 		printf "$mtime\n"
