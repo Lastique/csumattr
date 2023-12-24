@@ -21,6 +21,7 @@ Options:
  -u   Update checksum of the file, if it's outdated or not present
  -U   Force update checksum of the file, even if it's present an up-to-date
  -c   Compare the stored checksum with the SHA256 hash of the file
+ -C   Check the checksum or update if the checksum is missing or outdated
  -p   Print the stored SHA256 checksum
  -P   Print the stored SHA256 checksum in coreutils format
  -m   Print the stored file modification time at the point of computing
@@ -41,6 +42,8 @@ If <path> is a directory it is traversed recursively.\n" >&2
 check_file()
 {
 	local filename="$1"
+	local -i update="$2"
+	local -i do_update=0
 
 	local -i file_mtime
 	file_mtime="$(stat -c "%Y" "$filename")"
@@ -55,25 +58,40 @@ check_file()
 	stored_mtime="$(getfattr --only-values -n $mtime_attr "$filename" 2>/dev/null)"
 	if [[ $? -ne 0 ]]
 	then
-		printf "$filename: Modification time attribute not found\n" >&2
-		err=${err:-1}
-		return
+		if [[ $update -eq 0 ]]
+		then
+			printf "$filename: Modification time attribute not found\n" >&2
+			err=${err:-1}
+			return
+		else
+			do_update=1
+		fi
 	fi
 
 	if [[ $file_mtime -gt $stored_mtime ]]
 	then
-		printf "$filename: Checksum is outdated\n" >&2
-		err=2
-		return
+		if [[ $update -eq 0 ]]
+		then
+			printf "$filename: Checksum is outdated\n" >&2
+			err=2
+			return
+		else
+			do_update=1
+		fi
 	fi
 
 	local stored_csum
 	stored_csum="$(getfattr --only-values -n $csum_attr "$filename" 2>/dev/null)"
 	if [[ $? -ne 0 ]]
 	then
-		printf "$filename: Checksum attribute not found\n" >&2
-		err=${err:-1} # prevent overwriting err
-		return
+		if [[ $update -eq 0 ]]
+		then
+			printf "$filename: Checksum attribute not found\n" >&2
+			err=${err:-1} # prevent overwriting err
+			return
+		else
+			do_update=1
+		fi
 	fi
 
 	local file_csum_line
@@ -86,7 +104,17 @@ check_file()
 	fi
 
 	local file_csum="${file_csum_line%% *}"
-	if [ "${file_csum,,}" == "${stored_csum,,}" ]
+	if [[ $do_update -ne 0 ]]
+	then
+		setfattr -n $mtime_attr -v "$file_mtime" "$filename" && setfattr -n $csum_attr -v "$file_csum" "$filename"
+		if [[ $? -ne 0 ]]
+		then
+			printf "$filename: Failed to update checksum\n" >&2
+			err=${err:-1}
+			return
+		fi
+		printf "$filename: UPDATED\n"
+	elif [[ "${file_csum,,}" = "${stored_csum,,}" ]]
 	then
 		printf "$filename: OK\n"
 	else
@@ -199,7 +227,10 @@ process_file()
 			update_checksum "$filename" 2
 			;;
 		"check")
-			check_file "$filename"
+			check_file "$filename" 0
+			;;
+		"check_update")
+			check_file "$filename" 1
 			;;
 		"remove")
 			remove_attrs "$filename"
@@ -219,7 +250,7 @@ process_file()
 }
 
 # main
-while getopts "auUcvhrpPm" opt; do
+while getopts "auUcCvhrpPm" opt; do
 	case $opt in
 		a)
 			action="add"
@@ -232,6 +263,9 @@ while getopts "auUcvhrpPm" opt; do
 			;;
 		c)
 			action="check"
+			;;
+		C)
+			action="check_update"
 			;;
 		r)
 			action="remove"
