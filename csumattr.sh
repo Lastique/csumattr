@@ -19,7 +19,7 @@ $0 <options> path
 Options:
  -a   Add checksum to the file, if it's not present
  -u   Update checksum of the file, if it's outdated or not present
- -U   Force update checksum of the file, even if it's present an up-to-date
+ -U   Force update checksum of the file, even if it's present and up-to-date
  -c   Compare the stored checksum with the SHA256 hash of the file
  -C   Check the checksum or update if the checksum is missing or outdated
  -p   Print the stored SHA256 checksum
