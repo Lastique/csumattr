@@ -12,7 +12,7 @@ action=""
 
 usage()
 {
-	printf \
+	echo \
 "Usage:
 $0 <options> path
 
@@ -36,7 +36,7 @@ is stored in the $mtime_attr extended file attribute. This allows to test
 whether the file was legitimately modified since the checksum was computed
 or whether it was corrupted.
 
-If <path> is a directory it is traversed recursively.\n" >&2
+If <path> is a directory it is traversed recursively." >&2
 }
 
 check_file()
@@ -49,7 +49,7 @@ check_file()
 	file_mtime="$(stat -c "%Y" "$filename")"
 	if [[ $? -ne 0 ]]
 	then
-		printf "$filename: Failed to stat modification time\n" >&2
+		echo "$filename: Failed to stat modification time" >&2
 		err=${err:-1}
 		return
 	fi
@@ -60,7 +60,7 @@ check_file()
 	then
 		if [[ $update -eq 0 ]]
 		then
-			printf "$filename: Modification time attribute not found\n" >&2
+			echo "$filename: Modification time attribute not found" >&2
 			err=${err:-1}
 			return
 		else
@@ -72,7 +72,7 @@ check_file()
 	then
 		if [[ $update -eq 0 ]]
 		then
-			printf "$filename: Checksum is outdated\n" >&2
+			echo "$filename: Checksum is outdated" >&2
 			err=2
 			return
 		else
@@ -86,7 +86,7 @@ check_file()
 	then
 		if [[ $update -eq 0 ]]
 		then
-			printf "$filename: Checksum attribute not found\n" >&2
+			echo "$filename: Checksum attribute not found" >&2
 			err=${err:-1} # prevent overwriting err
 			return
 		else
@@ -98,7 +98,7 @@ check_file()
 	file_csum_line="$(openssl dgst -sha256 -r -- "$filename")"
 	if [[ $? -ne 0 ]]
 	then
-		printf "$filename: Failed to compute checksum\n" >&2
+		echo "$filename: Failed to compute checksum" >&2
 		err=${err:-1}
 		return
 	fi
@@ -109,17 +109,17 @@ check_file()
 		setfattr -n $mtime_attr -v "$file_mtime" "$filename" && setfattr -n $csum_attr -v "$file_csum" "$filename"
 		if [[ $? -ne 0 ]]
 		then
-			printf "$filename: Failed to update checksum\n" >&2
+			echo "$filename: Failed to update checksum" >&2
 			err=${err:-1}
 			return
 		fi
-		printf "$filename: UPDATED\n"
+		echo "$filename: UPDATED"
 	elif [[ "${file_csum,,}" = "${stored_csum,,}" ]]
 	then
-		printf "$filename: OK\n"
+		echo "$filename: OK"
 	else
-		printf "$filename: FAILED\n"
-		printf "$filename: Checksum mismatch (stored: ${stored_csum,,}, actual: ${file_csum,,})\n" >&2
+		echo "$filename: FAILED"
+		echo "$filename: Checksum mismatch (stored: ${stored_csum,,}, actual: ${file_csum,,})" >&2
 		err=3
 	fi
 }
@@ -133,7 +133,7 @@ update_checksum()
 	file_mtime="$(stat -c "%Y" "$filename")"
 	if [[ $? -ne 0 ]]
 	then
-		printf "$filename: Failed to stat modification time\n" >&2
+		echo "$filename: Failed to stat modification time" >&2
 		err=${err:-1}
 		return
 	fi
@@ -143,7 +143,7 @@ update_checksum()
 		getfattr -n $csum_attr "$filename" >/dev/null 2>&1
 		if [[ $? -eq 0 ]]
 		then
-			printf "$filename: Checksum attribute found, skipping\n" >&2
+			echo "$filename: Checksum attribute found, skipping" >&2
 			return
 		fi
 	fi
@@ -154,18 +154,18 @@ update_checksum()
 		stored_mtime="$(getfattr --only-values -n $mtime_attr "$filename" 2>/dev/null)"
 		if [[ $? -eq 0 && $file_mtime -le $stored_mtime ]]
 		then
-			printf "$filename: Checksum is up-to-date, skipping\n" >&2
+			echo "$filename: Checksum is up-to-date, skipping" >&2
 			return
 		fi
 	fi
 
-	printf "$filename: Updating checksum...\n" >&2
+	echo "$filename: Updating checksum..." >&2
 
 	local file_csum_line
 	file_csum_line="$(openssl dgst -sha256 -r -- "$filename")"
 	if [[ $? -ne 0 ]]
 	then
-		printf "$filename: Failed to compute checksum\n" >&2
+		echo "$filename: Failed to compute checksum" >&2
 		err=${err:-1}
 		return
 	fi
@@ -177,7 +177,7 @@ remove_attrs()
 {
 	local filename="$1"
 
-	printf "$filename: Removing checksum\n" >&2
+	echo "$filename: Removing checksum" >&2
 	setfattr -x $mtime_attr "$filename"
 	setfattr -x $csum_attr "$filename"
 }
@@ -193,9 +193,9 @@ print_checksum()
 	then
 		if [[ $coreutils_format -eq 0 ]]
 		then
-			printf "$stored_csum\n"
+			echo "$stored_csum"
 		else
-			printf "$stored_csum *$filename\n"
+			echo "$stored_csum *$filename"
 		fi
 	fi
 }
@@ -208,7 +208,7 @@ print_mtime()
 	stored_mtime="$(getfattr --only-values -n $mtime_attr "$filename")"
 	if [[ $? -eq 0 ]]
 	then
-		printf "$stored_mtime\n"
+		echo "$stored_mtime"
 	fi
 }
 
@@ -292,7 +292,8 @@ done
 
 if [[ -z "$action" ]]
 then
-	printf "The action option must be specified.\n\n" >&2
+	echo "The action option must be specified." >&2
+	echo "" >&2
 	usage
 	exit 1
 fi
@@ -310,7 +311,7 @@ elif [[ -f "$check_path" ]]
 then
 	process_file "$check_path"
 else
-	printf "Error: file not found: $check_path\n" >&2
+	echo "Error: file not found: $check_path" >&2
 	exit 2
 fi
 
