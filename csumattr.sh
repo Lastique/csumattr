@@ -1,5 +1,7 @@
 #!/usr/bin/bash
 #
+# Andrey Semashev, 2023
+#
 # The script originated from: https://gist.github.com/tsmetana/15b9bc7a7f5d529fbcfd689b3b65cc58
 #
 # Set/check SHA256 file checksum stored in the file's extended attributes
